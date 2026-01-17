@@ -1,369 +1,426 @@
--- PostgreSQL Database Initialization Script
+-- SQL Server Database Initialization Script
 -- JWT Backend API with Role & Permission Management
 
 -- Create database (run this separately if needed)
--- CREATE DATABASE jwtbackendapi;
-
--- Connect to the database
--- \c jwtbackendapi;
-
--- Enable UUID extension (optional, for future use)
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+-- CREATE DATABASE JwtBackendApi;
+-- GO
+-- USE JwtBackendApi;
+-- GO
 
 -- ===================================
 -- Tables
 -- ===================================
 
 -- Users table
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    username VARCHAR(100) NOT NULL UNIQUE,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(500) NOT NULL,
-    role VARCHAR(50) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT chk_username_length CHECK (LENGTH(username) >= 3),
-    CONSTRAINT chk_email_format CHECK (email ~* '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$')
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Users')
+BEGIN
+    CREATE TABLE Users (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        Username NVARCHAR(100) NOT NULL,
+        Email NVARCHAR(255) NOT NULL,
+        PasswordHash NVARCHAR(500) NOT NULL,
+        Role NVARCHAR(50) NOT NULL,
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT UQ_Users_Username UNIQUE (Username),
+        CONSTRAINT UQ_Users_Email UNIQUE (Email),
+        CONSTRAINT CHK_Username_Length CHECK (LEN(Username) >= 3)
+    );
+END
+GO
 
 -- User Groups table
-CREATE TABLE IF NOT EXISTS user_groups (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    description VARCHAR(500),
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    created_by INTEGER,
-    updated_by INTEGER
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserGroups')
+BEGIN
+    CREATE TABLE UserGroups (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        Name NVARCHAR(100) NOT NULL,
+        Description NVARCHAR(500),
+        IsActive BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        UpdatedAt DATETIME2,
+        CreatedBy INT,
+        UpdatedBy INT,
+        CONSTRAINT UQ_UserGroups_Name UNIQUE (Name)
+    );
+END
+GO
 
 -- User Group Memberships table (many-to-many)
-CREATE TABLE IF NOT EXISTS user_group_memberships (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    user_group_id INTEGER NOT NULL,
-    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    assigned_by INTEGER,
-    CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    CONSTRAINT fk_user_group FOREIGN KEY (user_group_id) REFERENCES user_groups(id) ON DELETE CASCADE,
-    CONSTRAINT uq_user_group_membership UNIQUE (user_id, user_group_id)
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'UserGroupMemberships')
+BEGIN
+    CREATE TABLE UserGroupMemberships (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        UserId INT NOT NULL,
+        UserGroupId INT NOT NULL,
+        AssignedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        AssignedBy INT,
+        CONSTRAINT FK_Memberships_User FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE,
+        CONSTRAINT FK_Memberships_UserGroup FOREIGN KEY (UserGroupId) REFERENCES UserGroups(Id) ON DELETE CASCADE,
+        CONSTRAINT UQ_User_Group_Membership UNIQUE (UserId, UserGroupId)
+    );
+END
+GO
 
 -- Screens table
-CREATE TABLE IF NOT EXISTS screens (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    display_name VARCHAR(200) NOT NULL,
-    description VARCHAR(500),
-    route VARCHAR(500),
-    icon VARCHAR(100),
-    parent_screen_id INTEGER,
-    "order" INTEGER NOT NULL DEFAULT 0,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    CONSTRAINT fk_parent_screen FOREIGN KEY (parent_screen_id) REFERENCES screens(id) ON DELETE SET NULL
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Screens')
+BEGIN
+    CREATE TABLE Screens (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        Name NVARCHAR(100) NOT NULL,
+        DisplayName NVARCHAR(200) NOT NULL,
+        Description NVARCHAR(500),
+        Route NVARCHAR(500),
+        Icon NVARCHAR(100),
+        ParentScreenId INT,
+        [Order] INT NOT NULL DEFAULT 0,
+        IsActive BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        UpdatedAt DATETIME2,
+        CONSTRAINT UQ_Screens_Name UNIQUE (Name),
+        CONSTRAINT FK_Screens_Parent FOREIGN KEY (ParentScreenId) REFERENCES Screens(Id)
+    );
+END
+GO
 
 -- Screen Actions table
-CREATE TABLE IF NOT EXISTS screen_actions (
-    id SERIAL PRIMARY KEY,
-    screen_id INTEGER NOT NULL,
-    action_name VARCHAR(100) NOT NULL,
-    display_name VARCHAR(200) NOT NULL,
-    description VARCHAR(500),
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_screen FOREIGN KEY (screen_id) REFERENCES screens(id) ON DELETE CASCADE,
-    CONSTRAINT uq_screen_action UNIQUE (screen_id, action_name)
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ScreenActions')
+BEGIN
+    CREATE TABLE ScreenActions (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        ScreenId INT NOT NULL,
+        ActionName NVARCHAR(100) NOT NULL,
+        DisplayName NVARCHAR(200) NOT NULL,
+        Description NVARCHAR(500),
+        IsActive BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CONSTRAINT FK_ScreenActions_Screen FOREIGN KEY (ScreenId) REFERENCES Screens(Id) ON DELETE CASCADE,
+        CONSTRAINT UQ_Screen_Action UNIQUE (ScreenId, ActionName)
+    );
+END
+GO
 
 -- Screen Permissions table
-CREATE TABLE IF NOT EXISTS screen_permissions (
-    id SERIAL PRIMARY KEY,
-    user_group_id INTEGER NOT NULL,
-    screen_id INTEGER NOT NULL,
-    screen_action_id INTEGER NOT NULL,
-    is_granted BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    created_by INTEGER,
-    CONSTRAINT fk_permission_user_group FOREIGN KEY (user_group_id) REFERENCES user_groups(id) ON DELETE CASCADE,
-    CONSTRAINT fk_permission_screen FOREIGN KEY (screen_id) REFERENCES screens(id) ON DELETE CASCADE,
-    CONSTRAINT fk_permission_action FOREIGN KEY (screen_action_id) REFERENCES screen_actions(id) ON DELETE CASCADE,
-    CONSTRAINT uq_permission UNIQUE (user_group_id, screen_id, screen_action_id)
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'ScreenPermissions')
+BEGIN
+    CREATE TABLE ScreenPermissions (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        UserGroupId INT NOT NULL,
+        ScreenId INT NOT NULL,
+        ScreenActionId INT NOT NULL,
+        IsGranted BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        CreatedBy INT,
+        CONSTRAINT FK_Permissions_UserGroup FOREIGN KEY (UserGroupId) REFERENCES UserGroups(Id) ON DELETE CASCADE,
+        CONSTRAINT FK_Permissions_Screen FOREIGN KEY (ScreenId) REFERENCES Screens(Id) ON DELETE NO ACTION,
+        CONSTRAINT FK_Permissions_Action FOREIGN KEY (ScreenActionId) REFERENCES ScreenActions(Id) ON DELETE NO ACTION,
+        CONSTRAINT UQ_Permission UNIQUE (UserGroupId, ScreenId, ScreenActionId)
+    );
+END
+GO
 
 -- Menus table
-CREATE TABLE IF NOT EXISTS menus (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE,
-    display_name VARCHAR(200) NOT NULL,
-    description VARCHAR(500),
-    location INTEGER NOT NULL, -- 1: Sidebar, 2: Header
-    "order" INTEGER NOT NULL DEFAULT 0,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    created_by INTEGER,
-    updated_by INTEGER,
-    CONSTRAINT chk_location CHECK (location IN (1, 2))
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Menus')
+BEGIN
+    CREATE TABLE Menus (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        Name NVARCHAR(100) NOT NULL,
+        DisplayName NVARCHAR(200) NOT NULL,
+        Description NVARCHAR(500),
+        Location INT NOT NULL, -- 1: Sidebar, 2: Header
+        [Order] INT NOT NULL DEFAULT 0,
+        IsActive BIT NOT NULL DEFAULT 1,
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        UpdatedAt DATETIME2,
+        CreatedBy INT,
+        UpdatedBy INT,
+        CONSTRAINT UQ_Menus_Name UNIQUE (Name),
+        CONSTRAINT CHK_Location CHECK (Location IN (1, 2))
+    );
+END
+GO
 
 -- Menu Items table
-CREATE TABLE IF NOT EXISTS menu_items (
-    id SERIAL PRIMARY KEY,
-    menu_id INTEGER NOT NULL,
-    parent_menu_item_id INTEGER,
-    item_type INTEGER NOT NULL, -- 1: Group, 2: Screen
-    screen_id INTEGER,
-    display_name VARCHAR(200) NOT NULL,
-    icon VARCHAR(100),
-    route VARCHAR(500),
-    "order" INTEGER NOT NULL DEFAULT 0,
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    badge_text VARCHAR(50),
-    badge_color VARCHAR(50),
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP,
-    created_by INTEGER,
-    updated_by INTEGER,
-    CONSTRAINT fk_menu FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE CASCADE,
-    CONSTRAINT fk_parent_menu_item FOREIGN KEY (parent_menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE,
-    CONSTRAINT fk_menu_screen FOREIGN KEY (screen_id) REFERENCES screens(id) ON DELETE SET NULL,
-    CONSTRAINT chk_item_type CHECK (item_type IN (1, 2))
-);
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'MenuItems')
+BEGIN
+    CREATE TABLE MenuItems (
+        Id INT IDENTITY(1,1) PRIMARY KEY,
+        MenuId INT NOT NULL,
+        ParentMenuItemId INT,
+        ItemType INT NOT NULL, -- 1: Group, 2: Screen
+        ScreenId INT,
+        DisplayName NVARCHAR(200) NOT NULL,
+        Icon NVARCHAR(100),
+        Route NVARCHAR(500),
+        [Order] INT NOT NULL DEFAULT 0,
+        IsActive BIT NOT NULL DEFAULT 1,
+        BadgeText NVARCHAR(50),
+        BadgeColor NVARCHAR(50),
+        CreatedAt DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+        UpdatedAt DATETIME2,
+        CreatedBy INT,
+        UpdatedBy INT,
+        CONSTRAINT FK_MenuItems_Menu FOREIGN KEY (MenuId) REFERENCES Menus(Id) ON DELETE CASCADE,
+        CONSTRAINT FK_MenuItems_Parent FOREIGN KEY (ParentMenuItemId) REFERENCES MenuItems(Id),
+        CONSTRAINT FK_MenuItems_Screen FOREIGN KEY (ScreenId) REFERENCES Screens(Id),
+        CONSTRAINT CHK_ItemType CHECK (ItemType IN (1, 2))
+    );
+END
+GO
 
 -- ===================================
 -- Indexes
 -- ===================================
 
 -- User indexes
-CREATE INDEX idx_users_username ON users(username);
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_created_at ON users(created_at);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Users_Username')
+    CREATE INDEX IX_Users_Username ON Users(Username);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Users_Email')
+    CREATE INDEX IX_Users_Email ON Users(Email);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Users_CreatedAt')
+    CREATE INDEX IX_Users_CreatedAt ON Users(CreatedAt);
+GO
 
 -- User Group Membership indexes
-CREATE INDEX idx_memberships_user_id ON user_group_memberships(user_id);
-CREATE INDEX idx_memberships_group_id ON user_group_memberships(user_group_id);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Memberships_UserId')
+    CREATE INDEX IX_Memberships_UserId ON UserGroupMemberships(UserId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Memberships_GroupId')
+    CREATE INDEX IX_Memberships_GroupId ON UserGroupMemberships(UserGroupId);
+GO
 
 -- Screen indexes
-CREATE INDEX idx_screens_name ON screens(name);
-CREATE INDEX idx_screens_order ON screens("order");
-CREATE INDEX idx_screens_parent ON screens(parent_screen_id);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Screens_Name')
+    CREATE INDEX IX_Screens_Name ON Screens(Name);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Screens_Order')
+    CREATE INDEX IX_Screens_Order ON Screens([Order]);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Screens_Parent')
+    CREATE INDEX IX_Screens_Parent ON Screens(ParentScreenId);
+GO
 
 -- Screen Action indexes
-CREATE INDEX idx_actions_screen_id ON screen_actions(screen_id);
-CREATE INDEX idx_actions_name ON screen_actions(action_name);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Actions_ScreenId')
+    CREATE INDEX IX_Actions_ScreenId ON ScreenActions(ScreenId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Actions_Name')
+    CREATE INDEX IX_Actions_Name ON ScreenActions(ActionName);
+GO
 
 -- Permission indexes
-CREATE INDEX idx_permissions_user_group ON screen_permissions(user_group_id);
-CREATE INDEX idx_permissions_screen ON screen_permissions(screen_id);
-CREATE INDEX idx_permissions_action ON screen_permissions(screen_action_id);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Permissions_UserGroup')
+    CREATE INDEX IX_Permissions_UserGroup ON ScreenPermissions(UserGroupId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Permissions_Screen')
+    CREATE INDEX IX_Permissions_Screen ON ScreenPermissions(ScreenId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Permissions_Action')
+    CREATE INDEX IX_Permissions_Action ON ScreenPermissions(ScreenActionId);
+GO
 
 -- Menu indexes
-CREATE INDEX idx_menus_location ON menus(location);
-CREATE INDEX idx_menus_order ON menus("order");
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Menus_Location')
+    CREATE INDEX IX_Menus_Location ON Menus(Location);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_Menus_Order')
+    CREATE INDEX IX_Menus_Order ON Menus([Order]);
+GO
 
 -- Menu Item indexes
-CREATE INDEX idx_menu_items_menu ON menu_items(menu_id);
-CREATE INDEX idx_menu_items_parent ON menu_items(parent_menu_item_id);
-CREATE INDEX idx_menu_items_screen ON menu_items(screen_id);
-CREATE INDEX idx_menu_items_order ON menu_items("order");
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_MenuItems_Menu')
+    CREATE INDEX IX_MenuItems_Menu ON MenuItems(MenuId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_MenuItems_Parent')
+    CREATE INDEX IX_MenuItems_Parent ON MenuItems(ParentMenuItemId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_MenuItems_Screen')
+    CREATE INDEX IX_MenuItems_Screen ON MenuItems(ScreenId);
+IF NOT EXISTS (SELECT * FROM sys.indexes WHERE name = 'IX_MenuItems_Order')
+    CREATE INDEX IX_MenuItems_Order ON MenuItems([Order]);
+GO
 
 -- ===================================
 -- Seed Data
 -- ===================================
 
 -- Seed User Groups
-INSERT INTO user_groups (name, description, is_active, created_at) VALUES
-('Administrators', 'Full system access', true, CURRENT_TIMESTAMP),
-('Managers', 'Management level access', true, CURRENT_TIMESTAMP),
-('Users', 'Standard user access', true, CURRENT_TIMESTAMP)
-ON CONFLICT (name) DO NOTHING;
+IF NOT EXISTS (SELECT 1 FROM UserGroups WHERE Name = 'Administrators')
+    INSERT INTO UserGroups (Name, Description, IsActive, CreatedAt) VALUES ('Administrators', 'Full system access', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM UserGroups WHERE Name = 'Managers')
+    INSERT INTO UserGroups (Name, Description, IsActive, CreatedAt) VALUES ('Managers', 'Management level access', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM UserGroups WHERE Name = 'Users')
+    INSERT INTO UserGroups (Name, Description, IsActive, CreatedAt) VALUES ('Users', 'Standard user access', 1, GETUTCDATE());
+GO
 
 -- Seed Screens
-INSERT INTO screens (name, display_name, description, route, icon, "order", is_active, created_at) VALUES
-('Dashboard', 'Ana Sayfa', 'Dashboard ekranı', '/dashboard', 'dashboard', 1, true, CURRENT_TIMESTAMP),
-('Users', 'Kullanıcılar', 'Kullanıcı yönetimi ekranı', '/users', 'people', 2, true, CURRENT_TIMESTAMP),
-('Settings', 'Ayarlar', 'Sistem ayarları', '/settings', 'settings', 3, true, CURRENT_TIMESTAMP)
-ON CONFLICT (name) DO NOTHING;
+IF NOT EXISTS (SELECT 1 FROM Screens WHERE Name = 'Dashboard')
+    INSERT INTO Screens (Name, DisplayName, Description, Route, Icon, [Order], IsActive, CreatedAt) VALUES ('Dashboard', N'Ana Sayfa', N'Dashboard ekranı', '/dashboard', 'dashboard', 1, 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM Screens WHERE Name = 'Users')
+    INSERT INTO Screens (Name, DisplayName, Description, Route, Icon, [Order], IsActive, CreatedAt) VALUES ('Users', N'Kullanıcılar', N'Kullanıcı yönetimi ekranı', '/users', 'people', 2, 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM Screens WHERE Name = 'Settings')
+    INSERT INTO Screens (Name, DisplayName, Description, Route, Icon, [Order], IsActive, CreatedAt) VALUES ('Settings', N'Ayarlar', N'Sistem ayarları', '/settings', 'settings', 3, 1, GETUTCDATE());
+GO
 
 -- Seed Screen Actions
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'view', 'Görüntüle', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Dashboard'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
+DECLARE @DashboardId INT = (SELECT Id FROM Screens WHERE Name = 'Dashboard');
+DECLARE @UsersId INT = (SELECT Id FROM Screens WHERE Name = 'Users');
+DECLARE @SettingsId INT = (SELECT Id FROM Screens WHERE Name = 'Settings');
 
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'export', 'Dışa Aktar', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Dashboard'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
+-- Dashboard actions
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @DashboardId AND ActionName = 'view')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@DashboardId, 'view', N'Görüntüle', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @DashboardId AND ActionName = 'export')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@DashboardId, 'export', N'Dışa Aktar', 1, GETUTCDATE());
 
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'view', 'Görüntüle', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Users'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
+-- Users actions
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @UsersId AND ActionName = 'view')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@UsersId, 'view', N'Görüntüle', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @UsersId AND ActionName = 'create')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@UsersId, 'create', N'Oluştur', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @UsersId AND ActionName = 'edit')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@UsersId, 'edit', N'Düzenle', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @UsersId AND ActionName = 'delete')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@UsersId, 'delete', 'Sil', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @UsersId AND ActionName = 'export')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@UsersId, 'export', N'Dışa Aktar', 1, GETUTCDATE());
 
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'create', 'Oluştur', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Users'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
-
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'edit', 'Düzenle', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Users'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
-
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'delete', 'Sil', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Users'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
-
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'export', 'Dışa Aktar', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Users'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
-
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'view', 'Görüntüle', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Settings'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
-
-INSERT INTO screen_actions (screen_id, action_name, display_name, is_active, created_at)
-SELECT s.id, 'edit', 'Düzenle', true, CURRENT_TIMESTAMP FROM screens s WHERE s.name = 'Settings'
-ON CONFLICT (screen_id, action_name) DO NOTHING;
+-- Settings actions
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @SettingsId AND ActionName = 'view')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@SettingsId, 'view', N'Görüntüle', 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM ScreenActions WHERE ScreenId = @SettingsId AND ActionName = 'edit')
+    INSERT INTO ScreenActions (ScreenId, ActionName, DisplayName, IsActive, CreatedAt) VALUES (@SettingsId, 'edit', N'Düzenle', 1, GETUTCDATE());
+GO
 
 -- Seed Screen Permissions (Administrators get all permissions)
-INSERT INTO screen_permissions (user_group_id, screen_id, screen_action_id, is_granted, created_at)
-SELECT ug.id, sa.screen_id, sa.id, true, CURRENT_TIMESTAMP
-FROM user_groups ug
-CROSS JOIN screen_actions sa
-WHERE ug.name = 'Administrators'
-ON CONFLICT (user_group_id, screen_id, screen_action_id) DO NOTHING;
+DECLARE @AdminGroupId INT = (SELECT Id FROM UserGroups WHERE Name = 'Administrators');
+DECLARE @UsersGroupId INT = (SELECT Id FROM UserGroups WHERE Name = 'Users');
+
+INSERT INTO ScreenPermissions (UserGroupId, ScreenId, ScreenActionId, IsGranted, CreatedAt)
+SELECT @AdminGroupId, sa.ScreenId, sa.Id, 1, GETUTCDATE()
+FROM ScreenActions sa
+WHERE NOT EXISTS (
+    SELECT 1 FROM ScreenPermissions sp
+    WHERE sp.UserGroupId = @AdminGroupId AND sp.ScreenId = sa.ScreenId AND sp.ScreenActionId = sa.Id
+);
 
 -- Seed Screen Permissions (Users get view permissions)
-INSERT INTO screen_permissions (user_group_id, screen_id, screen_action_id, is_granted, created_at)
-SELECT ug.id, sa.screen_id, sa.id, true, CURRENT_TIMESTAMP
-FROM user_groups ug
-CROSS JOIN screen_actions sa
-WHERE ug.name = 'Users' AND sa.action_name = 'view'
-ON CONFLICT (user_group_id, screen_id, screen_action_id) DO NOTHING;
+INSERT INTO ScreenPermissions (UserGroupId, ScreenId, ScreenActionId, IsGranted, CreatedAt)
+SELECT @UsersGroupId, sa.ScreenId, sa.Id, 1, GETUTCDATE()
+FROM ScreenActions sa
+WHERE sa.ActionName = 'view'
+AND NOT EXISTS (
+    SELECT 1 FROM ScreenPermissions sp
+    WHERE sp.UserGroupId = @UsersGroupId AND sp.ScreenId = sa.ScreenId AND sp.ScreenActionId = sa.Id
+);
+GO
 
 -- Seed Menus
-INSERT INTO menus (name, display_name, description, location, "order", is_active, created_at) VALUES
-('MainSidebar', 'Ana Menü', 'Sol taraf ana menü', 1, 1, true, CURRENT_TIMESTAMP),
-('TopHeader', 'Üst Menü', 'Header menüsü', 2, 1, true, CURRENT_TIMESTAMP)
-ON CONFLICT (name) DO NOTHING;
+IF NOT EXISTS (SELECT 1 FROM Menus WHERE Name = 'MainSidebar')
+    INSERT INTO Menus (Name, DisplayName, Description, Location, [Order], IsActive, CreatedAt) VALUES ('MainSidebar', N'Ana Menü', N'Sol taraf ana menü', 1, 1, 1, GETUTCDATE());
+IF NOT EXISTS (SELECT 1 FROM Menus WHERE Name = 'TopHeader')
+    INSERT INTO Menus (Name, DisplayName, Description, Location, [Order], IsActive, CreatedAt) VALUES ('TopHeader', N'Üst Menü', N'Header menüsü', 2, 1, 1, GETUTCDATE());
+GO
 
 -- Seed Menu Items
-DO $$
-DECLARE
-    sidebar_menu_id INTEGER;
-    header_menu_id INTEGER;
-    dashboard_screen_id INTEGER;
-    users_screen_id INTEGER;
-    settings_screen_id INTEGER;
-    management_group_id INTEGER;
+DECLARE @SidebarMenuId INT = (SELECT Id FROM Menus WHERE Name = 'MainSidebar');
+DECLARE @HeaderMenuId INT = (SELECT Id FROM Menus WHERE Name = 'TopHeader');
+DECLARE @DashboardScreenId INT = (SELECT Id FROM Screens WHERE Name = 'Dashboard');
+DECLARE @UsersScreenId INT = (SELECT Id FROM Screens WHERE Name = 'Users');
+DECLARE @SettingsScreenId INT = (SELECT Id FROM Screens WHERE Name = 'Settings');
+
+-- Dashboard menu item (sidebar)
+IF NOT EXISTS (SELECT 1 FROM MenuItems WHERE MenuId = @SidebarMenuId AND DisplayName = N'Ana Sayfa')
+    INSERT INTO MenuItems (MenuId, ItemType, ScreenId, DisplayName, Icon, Route, [Order], IsActive, CreatedAt)
+    VALUES (@SidebarMenuId, 2, @DashboardScreenId, N'Ana Sayfa', 'dashboard', '/dashboard', 1, 1, GETUTCDATE());
+
+-- Management group
+DECLARE @ManagementGroupId INT;
+IF NOT EXISTS (SELECT 1 FROM MenuItems WHERE MenuId = @SidebarMenuId AND DisplayName = N'Yönetim' AND ItemType = 1)
 BEGIN
-    -- Get menu IDs
-    SELECT id INTO sidebar_menu_id FROM menus WHERE name = 'MainSidebar';
-    SELECT id INTO header_menu_id FROM menus WHERE name = 'TopHeader';
+    INSERT INTO MenuItems (MenuId, ItemType, DisplayName, Icon, [Order], IsActive, CreatedAt)
+    VALUES (@SidebarMenuId, 1, N'Yönetim', 'settings', 2, 1, GETUTCDATE());
+    SET @ManagementGroupId = SCOPE_IDENTITY();
+END
+ELSE
+BEGIN
+    SET @ManagementGroupId = (SELECT Id FROM MenuItems WHERE MenuId = @SidebarMenuId AND DisplayName = N'Yönetim' AND ItemType = 1);
+END
 
-    -- Get screen IDs
-    SELECT id INTO dashboard_screen_id FROM screens WHERE name = 'Dashboard';
-    SELECT id INTO users_screen_id FROM screens WHERE name = 'Users';
-    SELECT id INTO settings_screen_id FROM screens WHERE name = 'Settings';
+-- Users under Management
+IF NOT EXISTS (SELECT 1 FROM MenuItems WHERE MenuId = @SidebarMenuId AND ParentMenuItemId = @ManagementGroupId AND ScreenId = @UsersScreenId)
+    INSERT INTO MenuItems (MenuId, ParentMenuItemId, ItemType, ScreenId, DisplayName, Icon, Route, [Order], IsActive, CreatedAt)
+    VALUES (@SidebarMenuId, @ManagementGroupId, 2, @UsersScreenId, N'Kullanıcılar', 'people', '/users', 1, 1, GETUTCDATE());
 
-    -- Insert Dashboard menu item (sidebar)
-    INSERT INTO menu_items (menu_id, item_type, screen_id, display_name, icon, route, "order", is_active, created_at)
-    VALUES (sidebar_menu_id, 2, dashboard_screen_id, 'Ana Sayfa', 'dashboard', '/dashboard', 1, true, CURRENT_TIMESTAMP)
-    ON CONFLICT DO NOTHING;
+-- Settings under Management
+IF NOT EXISTS (SELECT 1 FROM MenuItems WHERE MenuId = @SidebarMenuId AND ParentMenuItemId = @ManagementGroupId AND ScreenId = @SettingsScreenId)
+    INSERT INTO MenuItems (MenuId, ParentMenuItemId, ItemType, ScreenId, DisplayName, Icon, Route, [Order], IsActive, CreatedAt)
+    VALUES (@SidebarMenuId, @ManagementGroupId, 2, @SettingsScreenId, N'Ayarlar', 'settings', '/settings', 2, 1, GETUTCDATE());
 
-    -- Insert Management group
-    INSERT INTO menu_items (menu_id, item_type, display_name, icon, "order", is_active, created_at)
-    VALUES (sidebar_menu_id, 1, 'Yönetim', 'settings', 2, true, CURRENT_TIMESTAMP)
-    ON CONFLICT DO NOTHING
-    RETURNING id INTO management_group_id;
-
-    -- Get management group ID if not returned
-    IF management_group_id IS NULL THEN
-        SELECT id INTO management_group_id FROM menu_items
-        WHERE menu_id = sidebar_menu_id AND item_type = 1 AND display_name = 'Yönetim';
-    END IF;
-
-    -- Insert Users under Management
-    INSERT INTO menu_items (menu_id, parent_menu_item_id, item_type, screen_id, display_name, icon, route, "order", is_active, created_at)
-    VALUES (sidebar_menu_id, management_group_id, 2, users_screen_id, 'Kullanıcılar', 'people', '/users', 1, true, CURRENT_TIMESTAMP)
-    ON CONFLICT DO NOTHING;
-
-    -- Insert Settings under Management
-    INSERT INTO menu_items (menu_id, parent_menu_item_id, item_type, screen_id, display_name, icon, route, "order", is_active, created_at)
-    VALUES (sidebar_menu_id, management_group_id, 2, settings_screen_id, 'Ayarlar', 'settings', '/settings', 2, true, CURRENT_TIMESTAMP)
-    ON CONFLICT DO NOTHING;
-
-    -- Insert Dashboard menu item (header)
-    INSERT INTO menu_items (menu_id, item_type, screen_id, display_name, icon, route, "order", is_active, created_at)
-    VALUES (header_menu_id, 2, dashboard_screen_id, 'Dashboard', 'dashboard', '/dashboard', 1, true, CURRENT_TIMESTAMP)
-    ON CONFLICT DO NOTHING;
-END $$;
+-- Dashboard menu item (header)
+IF NOT EXISTS (SELECT 1 FROM MenuItems WHERE MenuId = @HeaderMenuId AND DisplayName = 'Dashboard')
+    INSERT INTO MenuItems (MenuId, ItemType, ScreenId, DisplayName, Icon, Route, [Order], IsActive, CreatedAt)
+    VALUES (@HeaderMenuId, 2, @DashboardScreenId, 'Dashboard', 'dashboard', '/dashboard', 1, 1, GETUTCDATE());
+GO
 
 -- Seed default admin user (password: Admin123!)
 -- Password hash is SHA256 of "Admin123!"
-INSERT INTO users (username, email, password_hash, role, created_at) VALUES
-('admin', 'admin@example.com', 'jGl25bVBBBW96Qi9Te4V37Fnqchz/Eu4qB9vKrRIqRg=', 'Admin', CURRENT_TIMESTAMP)
-ON CONFLICT (username) DO NOTHING;
+IF NOT EXISTS (SELECT 1 FROM Users WHERE Username = 'admin')
+    INSERT INTO Users (Username, Email, PasswordHash, Role, CreatedAt)
+    VALUES ('admin', 'admin@example.com', 'jGl25bVBBBW96Qi9Te4V37Fnqchz/Eu4qB9vKrRIqRg=', 'Admin', GETUTCDATE());
+GO
 
 -- Assign admin to Administrators group
-INSERT INTO user_group_memberships (user_id, user_group_id, assigned_at)
-SELECT u.id, ug.id, CURRENT_TIMESTAMP
-FROM users u
-CROSS JOIN user_groups ug
-WHERE u.username = 'admin' AND ug.name = 'Administrators'
-ON CONFLICT (user_id, user_group_id) DO NOTHING;
+DECLARE @AdminUserId INT = (SELECT Id FROM Users WHERE Username = 'admin');
+DECLARE @AdminsGroupId INT = (SELECT Id FROM UserGroups WHERE Name = 'Administrators');
+
+IF NOT EXISTS (SELECT 1 FROM UserGroupMemberships WHERE UserId = @AdminUserId AND UserGroupId = @AdminsGroupId)
+    INSERT INTO UserGroupMemberships (UserId, UserGroupId, AssignedAt) VALUES (@AdminUserId, @AdminsGroupId, GETUTCDATE());
+GO
 
 -- ===================================
 -- Views (Optional - for easier queries)
 -- ===================================
 
 -- View: User permissions summary
-CREATE OR REPLACE VIEW v_user_permissions AS
+IF EXISTS (SELECT * FROM sys.views WHERE name = 'v_UserPermissions')
+    DROP VIEW v_UserPermissions;
+GO
+
+CREATE VIEW v_UserPermissions AS
 SELECT
-    u.id as user_id,
-    u.username,
-    ug.name as user_group_name,
-    s.name as screen_name,
-    s.display_name as screen_display_name,
-    sa.action_name,
-    sa.display_name as action_display_name,
-    sp.is_granted
-FROM users u
-JOIN user_group_memberships ugm ON u.id = ugm.user_id
-JOIN user_groups ug ON ugm.user_group_id = ug.id
-JOIN screen_permissions sp ON ug.id = sp.user_group_id
-JOIN screens s ON sp.screen_id = s.id
-JOIN screen_actions sa ON sp.screen_action_id = sa.id
-WHERE ug.is_active = true AND s.is_active = true AND sa.is_active = true;
+    u.Id AS UserId,
+    u.Username,
+    ug.Name AS UserGroupName,
+    s.Name AS ScreenName,
+    s.DisplayName AS ScreenDisplayName,
+    sa.ActionName,
+    sa.DisplayName AS ActionDisplayName,
+    sp.IsGranted
+FROM Users u
+INNER JOIN UserGroupMemberships ugm ON u.Id = ugm.UserId
+INNER JOIN UserGroups ug ON ugm.UserGroupId = ug.Id
+INNER JOIN ScreenPermissions sp ON ug.Id = sp.UserGroupId
+INNER JOIN Screens s ON sp.ScreenId = s.Id
+INNER JOIN ScreenActions sa ON sp.ScreenActionId = sa.Id
+WHERE ug.IsActive = 1 AND s.IsActive = 1 AND sa.IsActive = 1;
+GO
 
 -- View: Menu structure
-CREATE OR REPLACE VIEW v_menu_structure AS
-SELECT
-    m.id as menu_id,
-    m.name as menu_name,
-    m.display_name as menu_display_name,
-    m.location,
-    mi.id as menu_item_id,
-    mi.parent_menu_item_id,
-    mi.item_type,
-    mi.display_name as item_display_name,
-    mi.icon,
-    mi.route,
-    mi."order",
-    s.name as screen_name,
-    s.id as screen_id
-FROM menus m
-LEFT JOIN menu_items mi ON m.id = mi.menu_id
-LEFT JOIN screens s ON mi.screen_id = s.id
-WHERE m.is_active = true AND (mi.id IS NULL OR mi.is_active = true)
-ORDER BY m."order", mi."order";
+IF EXISTS (SELECT * FROM sys.views WHERE name = 'v_MenuStructure')
+    DROP VIEW v_MenuStructure;
+GO
 
-COMMENT ON TABLE users IS 'Application users';
-COMMENT ON TABLE user_groups IS 'User groups/roles';
-COMMENT ON TABLE user_group_memberships IS 'User to group assignments (many-to-many)';
-COMMENT ON TABLE screens IS 'Application screens/pages';
-COMMENT ON TABLE screen_actions IS 'Actions available on each screen';
-COMMENT ON TABLE screen_permissions IS 'Permissions assigned to user groups for screen actions';
-COMMENT ON TABLE menus IS 'Menu definitions';
-COMMENT ON TABLE menu_items IS 'Menu items with hierarchical support';
+CREATE VIEW v_MenuStructure AS
+SELECT
+    m.Id AS MenuId,
+    m.Name AS MenuName,
+    m.DisplayName AS MenuDisplayName,
+    m.Location,
+    mi.Id AS MenuItemId,
+    mi.ParentMenuItemId,
+    mi.ItemType,
+    mi.DisplayName AS ItemDisplayName,
+    mi.Icon,
+    mi.Route,
+    mi.[Order],
+    s.Name AS ScreenName,
+    s.Id AS ScreenId
+FROM Menus m
+LEFT JOIN MenuItems mi ON m.Id = mi.MenuId
+LEFT JOIN Screens s ON mi.ScreenId = s.Id
+WHERE m.IsActive = 1 AND (mi.Id IS NULL OR mi.IsActive = 1);
+GO
+
+PRINT 'Database initialization completed successfully.';
+GO

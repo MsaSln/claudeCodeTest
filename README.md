@@ -41,8 +41,8 @@
 - Entity Framework Core 8.0
 
 ### Database
-- PostgreSQL 16
-- Npgsql Entity Framework Core Provider
+- SQL Server / SQL Server LocalDB
+- Microsoft.EntityFrameworkCore.SqlServer
 
 ### Authentication & Security
 - JWT Bearer Authentication
@@ -53,7 +53,7 @@
 ### Documentation & Tools
 - Swagger/OpenAPI
 - Visual Studio 2022
-- pgAdmin 4 (opsiyonel)
+- SQL Server Management Studio (opsiyonel)
 
 ## Proje Yapısı
 
@@ -103,13 +103,12 @@ JwtBackendApi/
 └── appsettings.Development.json   # Development konfigürasyonu
 
 database/
-├── init.sql                        # PostgreSQL initialization script
+├── init.sql                        # SQL Server initialization script
 └── install-packages.sh             # NuGet packages install script
 
 JwtBackendApi.sln                   # Visual Studio Solution file
 VISUAL_STUDIO_SETUP.md              # Visual Studio kurulum rehberi
 DATABASE_SETUP.md                   # Database setup documentation
-docker-compose.yml                  # Docker Compose configuration (opsiyonel)
 ```
 
 ## Veri Modeli
@@ -144,7 +143,7 @@ Screen (1) ──< (N) ScreenAction (1)            ScreenPermission
 - **Visual Studio 2022** (17.8 veya üzeri önerilir)
   - ASP.NET and web development workload
   - .NET 8.0 SDK
-- **PostgreSQL 16+**
+  - SQL Server LocalDB (Visual Studio ile birlikte gelir)
 
 ### Visual Studio ile Hızlı Başlangıç (Önerilen)
 
@@ -152,30 +151,18 @@ Detaylı kurulum adımları için **[VISUAL_STUDIO_SETUP.md](VISUAL_STUDIO_SETUP
 
 #### Kısa Özet:
 
-1. **PostgreSQL Kurulumu**
-   - [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) adresinden indirin
-   - Kurulum sırasında belirlediğiniz şifreyi not edin
-
-2. **Veritabanı Oluşturma**
-   - pgAdmin veya psql ile `jwtbackendapi_dev` veritabanını oluşturun
-
-3. **Connection String Güncelleme**
-
-   `JwtBackendApi/appsettings.Development.json` dosyasında şifreyi güncelleyin:
-   ```json
-   {
-     "ConnectionStrings": {
-       "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi_dev;Username=postgres;Password=SizinSifreniz"
-     }
-   }
-   ```
-
-4. **Visual Studio ile Açma**
+1. **Visual Studio ile Açma**
    - `JwtBackendApi.sln` dosyasını Visual Studio ile açın
-   - F5 ile çalıştırın
 
-5. **Test**
+2. **Projeyi Çalıştırma**
+   - F5 ile çalıştırın
+   - Veritabanı otomatik oluşturulur (LocalDB)
+   - Seed data otomatik eklenir
+
+3. **Test**
    - Swagger UI otomatik açılacaktır: https://localhost:7262/swagger
+
+**Not:** SQL Server LocalDB, Visual Studio ile birlikte gelir. Ekstra kurulum gerekmez!
 
 ### Komut Satırı ile Kurulum
 
@@ -184,61 +171,20 @@ Detaylı kurulum adımları için **[VISUAL_STUDIO_SETUP.md](VISUAL_STUDIO_SETUP
 dotnet --version
 ```
 
-2. PostgreSQL kurun ve başlatın
-```bash
-# Ubuntu/Debian
-sudo apt install postgresql postgresql-contrib
-
-# macOS
-brew install postgresql@16
-
-# Windows
-# https://www.postgresql.org/download/windows/
-```
-
-3. Database oluşturun
-```bash
-sudo -u postgres psql
-CREATE DATABASE jwtbackendapi_dev;
-\q
-```
-
-4. Connection string'i güncelleyin
-```json
-// appsettings.Development.json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi_dev;Username=postgres;Password=YourPassword"
-  }
-}
-```
-
-5. Uygulamayı çalıştırın
+2. Uygulamayı çalıştırın
 ```bash
 cd JwtBackendApi
 dotnet restore
 dotnet run
 ```
 
-### Docker ile Kurulum (Alternatif)
-
-Docker kullanmak isterseniz:
-
-```bash
-# PostgreSQL ve pgAdmin'i başlat
-docker-compose up -d
-
-# Uygulamayı çalıştır
-cd JwtBackendApi
-dotnet restore
-dotnet run
-```
+Veritabanı ilk çalıştırmada otomatik oluşturulur.
 
 ### Entity Framework Migrations (Alternatif)
 
-SQL script yerine Entity Framework migrations kullanabilirsiniz:
+Migration kullanmak isterseniz:
 
-```bash
+```powershell
 cd JwtBackendApi
 
 # Migration oluştur
@@ -252,23 +198,31 @@ dotnet ef database update
 
 ### Veritabanı Bağlantı Bilgileri
 
-**Development (Varsayılan):**
-- Host: `localhost`
-- Port: `5432`
-- Database: `jwtbackendapi_dev`
-- Username: `postgres`
-- Password: `(kurulumda belirlediğiniz şifre)`
+**Development (LocalDB - Varsayılan):**
+- Server: `(localdb)\mssqllocaldb`
+- Database: `JwtBackendApi_Dev`
+- Authentication: Windows Authentication
 
-**Docker Kullanıyorsanız (Opsiyonel):**
+**Production (SQL Server):**
+- Server: `localhost` veya sunucu adınız
+- Database: `JwtBackendApi`
+- Authentication: SQL Server Authentication
 
-Docker ile PostgreSQL ve pgAdmin çalıştırabilirsiniz:
+### Connection String Seçenekleri
 
-```bash
-docker-compose up -d
+```json
+// LocalDB (Development)
+"Server=(localdb)\\mssqllocaldb;Database=JwtBackendApi_Dev;Trusted_Connection=true"
+
+// SQL Server Express
+"Server=.\\SQLEXPRESS;Database=JwtBackendApi;Trusted_Connection=true"
+
+// SQL Server (Windows Auth)
+"Server=localhost;Database=JwtBackendApi;Trusted_Connection=true;TrustServerCertificate=true"
+
+// SQL Server (SQL Auth)
+"Server=localhost;Database=JwtBackendApi;User Id=sa;Password=YourPassword;TrustServerCertificate=true"
 ```
-
-- **PostgreSQL:** `localhost:5432` (user: postgres, pass: postgres)
-- **pgAdmin:** `http://localhost:5050` (email: admin@example.com, pass: admin)
 
 ### Varsayılan Admin Kullanıcısı
 

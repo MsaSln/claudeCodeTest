@@ -1,79 +1,40 @@
 # Visual Studio ile Geliştirme Ortamı Kurulumu
 
-Bu döküman, projeyi Docker kullanmadan Visual Studio ile geliştirmek için gerekli adımları açıklar.
+Bu döküman, projeyi Visual Studio 2022 ve SQL Server LocalDB ile geliştirmek için gerekli adımları açıklar.
 
 ## Gereksinimler
 
 - **Visual Studio 2022** (17.8 veya üzeri önerilir)
   - ASP.NET and web development workload
   - .NET 8.0 SDK
-- **PostgreSQL 16** (veya uyumlu bir sürüm)
+  - SQL Server LocalDB (Visual Studio ile birlikte gelir)
 
-## 1. PostgreSQL Kurulumu
+## 1. SQL Server LocalDB
 
-### Windows için PostgreSQL Kurulumu
+Visual Studio 2022 kurulumu sırasında "ASP.NET and web development" workload'u seçtiyseniz, **SQL Server LocalDB** otomatik olarak yüklenir.
 
-1. [PostgreSQL İndirme Sayfası](https://www.postgresql.org/download/windows/)'na gidin
-2. "Download the installer" butonuna tıklayın
-3. En son PostgreSQL 16.x sürümünü indirin
-4. Kurulum sihirbazını başlatın:
-   - Kurulum dizinini seçin (varsayılan: `C:\Program Files\PostgreSQL\16`)
-   - Veri dizinini seçin (varsayılan: `C:\Program Files\PostgreSQL\16\data`)
-   - **Superuser şifresi** belirleyin (bu şifreyi unutmayın!)
-   - Port: `5432` (varsayılan)
-   - Locale: Turkish, Turkey veya Default locale
-5. Stack Builder'ı atlayabilirsiniz (isteğe bağlı araçlar)
+### LocalDB Kurulumu Kontrol
 
-### pgAdmin 4 (Opsiyonel)
+1. Visual Studio Installer'ı açın
+2. "Modify" butonuna tıklayın
+3. "Individual components" sekmesine gidin
+4. "SQL Server Express LocalDB" seçili olmalı
 
-PostgreSQL kurulumu ile birlikte pgAdmin 4 de yüklenir. Bu araç ile veritabanınızı görsel olarak yönetebilirsiniz.
+### Alternatif: Manuel LocalDB Kurulumu
 
-## 2. Veritabanı Oluşturma
+LocalDB yüklü değilse:
+1. [SQL Server Express](https://www.microsoft.com/en-us/sql-server/sql-server-downloads) sayfasına gidin
+2. "Express" sürümünü indirin
+3. Kurulum sırasında "LocalDB" seçeneğini işaretleyin
 
-### pgAdmin ile:
-
-1. pgAdmin 4'ü açın
-2. Sol panelde "Servers" > "PostgreSQL 16" > sağ tık > "Connect Server"
-3. Şifrenizi girin
-4. "Databases" > sağ tık > "Create" > "Database"
-5. Database name: `jwtbackendapi_dev` (Development için)
-6. "Save" butonuna tıklayın
-
-### psql ile (Komut Satırı):
-
-```bash
-# PostgreSQL'e bağlan
-psql -U postgres
-
-# Veritabanını oluştur
-CREATE DATABASE jwtbackendapi_dev;
-
-# Çıkış
-\q
-```
-
-## 3. Connection String Yapılandırması
-
-`JwtBackendApi/appsettings.Development.json` dosyasını açın ve PostgreSQL şifrenizi güncelleyin:
-
-```json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi_dev;Username=postgres;Password=SizinSifreniz"
-  }
-}
-```
-
-**NOT:** `YourPasswordHere` yerine PostgreSQL kurulumunda belirlediğiniz şifreyi yazın.
-
-## 4. Visual Studio ile Projeyi Açma
+## 2. Visual Studio ile Projeyi Açma
 
 1. Visual Studio 2022'yi açın
 2. "Open a project or solution" seçin
 3. `JwtBackendApi.sln` dosyasını seçin
 4. Solution Explorer'da projenin yüklendiğini doğrulayın
 
-## 5. NuGet Paketlerini Yükleme
+## 3. NuGet Paketlerini Yükleme
 
 Visual Studio projeyi açtığında NuGet paketlerini otomatik olarak yükler. Eğer yüklenmezse:
 
@@ -86,23 +47,26 @@ Veya Package Manager Console'da:
 Update-Package -reinstall
 ```
 
-## 6. Veritabanı Migration (İlk Çalıştırma)
+## 4. Veritabanı (Otomatik Oluşturma)
 
-Proje ilk çalıştırıldığında `DbInitializer` otomatik olarak:
-- Tüm tabloları oluşturur
-- Varsayılan verileri (seed data) ekler
+Proje **Entity Framework Core** kullanır ve veritabanı ilk çalıştırmada otomatik oluşturulur:
 
-Eğer manuel migration yapmak isterseniz, Package Manager Console'da:
+- Development ortamında `JwtBackendApi_Dev` veritabanı oluşur
+- `DbInitializer` otomatik olarak seed data ekler
+
+### Veritabanını Elle Oluşturmak İsterseniz
+
+Package Manager Console'da (Tools → NuGet Package Manager → Package Manager Console):
 
 ```powershell
-# Migration oluştur
+# Migration oluştur (zaten varsa atlayın)
 Add-Migration InitialCreate
 
-# Veritabanını güncelle
+# Veritabanını oluştur/güncelle
 Update-Database
 ```
 
-## 7. Projeyi Çalıştırma
+## 5. Projeyi Çalıştırma
 
 ### Visual Studio ile:
 
@@ -120,7 +84,7 @@ cd JwtBackendApi
 dotnet run
 ```
 
-## 8. API'yi Test Etme
+## 6. API'yi Test Etme
 
 Uygulama başlatıldığında:
 
@@ -162,27 +126,55 @@ Sistem otomatik olarak bir admin kullanıcısı oluşturur:
 | E-posta | admin@example.com |
 | Şifre | Admin123! |
 
+## 7. Veritabanını Görüntüleme
+
+### SQL Server Object Explorer
+
+1. Visual Studio'da View → SQL Server Object Explorer
+2. SQL Server → (localdb)\MSSQLLocalDB → Databases → JwtBackendApi_Dev
+3. Tables altında tüm tabloları görebilirsiniz
+
+### SSMS (SQL Server Management Studio)
+
+1. SSMS'i açın
+2. Server name: `(localdb)\mssqllocaldb`
+3. Authentication: Windows Authentication
+4. Connect
+
 ## Sorun Giderme
 
-### "Connection refused" hatası
+### "Cannot connect to LocalDB" hatası
 
-- PostgreSQL servisinin çalıştığından emin olun:
-  - Windows Services'te "postgresql-x64-16" servisini kontrol edin
-  - Servis durmuşsa başlatın
-
-### "Password authentication failed" hatası
-
-- `appsettings.Development.json` dosyasındaki şifrenin doğru olduğundan emin olun
-- PostgreSQL şifresini sıfırlamanız gerekebilir
+1. Windows Services'te "SQL Server (MSSQLLOCALDB)" servisini kontrol edin
+2. Veya komut satırında:
+```cmd
+sqllocaldb info mssqllocaldb
+sqllocaldb start mssqllocaldb
+```
 
 ### "Database does not exist" hatası
 
-- `jwtbackendapi_dev` veritabanını oluşturduğunuzdan emin olun
-- pgAdmin veya psql ile kontrol edin
+Uygulama ilk çalıştırmada veritabanını otomatik oluşturur. Eğer oluşmadıysa:
 
-### Port çakışması
+```powershell
+# Package Manager Console'da
+Update-Database
+```
 
-Eğer 5432 portu kullanımdaysa, `appsettings.Development.json` dosyasında farklı bir port belirtin ve PostgreSQL'i de aynı porta yapılandırın.
+### Migration hataları
+
+```powershell
+# Tüm migration'ları sil ve yeniden oluştur
+Remove-Migration
+Add-Migration InitialCreate
+Update-Database
+```
+
+### LocalDB sürümü uyumsuzluğu
+
+Connection string'deki LocalDB sürümünü kontrol edin:
+- Visual Studio 2022: `(localdb)\mssqllocaldb`
+- Eski sürümler: `(localdb)\v11.0` veya `(localdb)\ProjectsV13`
 
 ## Geliştirme İpuçları
 
@@ -200,7 +192,29 @@ Production şifrelerini kod tabanında saklamak yerine User Secrets kullanın:
 
 ```bash
 dotnet user-secrets init
-dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Host=localhost;Port=5432;Database=jwtbackendapi_dev;Username=postgres;Password=GercekSifre"
+dotnet user-secrets set "ConnectionStrings:DefaultConnection" "Server=myserver;Database=JwtBackendApi;User Id=sa;Password=GercekSifre;TrustServerCertificate=true"
+```
+
+## Connection String Seçenekleri
+
+### Development (LocalDB - Varsayılan)
+```json
+"Server=(localdb)\\mssqllocaldb;Database=JwtBackendApi_Dev;Trusted_Connection=true;MultipleActiveResultSets=true"
+```
+
+### SQL Server Express
+```json
+"Server=.\\SQLEXPRESS;Database=JwtBackendApi;Trusted_Connection=true;MultipleActiveResultSets=true"
+```
+
+### SQL Server (Windows Authentication)
+```json
+"Server=localhost;Database=JwtBackendApi;Trusted_Connection=true;TrustServerCertificate=true"
+```
+
+### SQL Server (SQL Authentication)
+```json
+"Server=localhost;Database=JwtBackendApi;User Id=sa;Password=YourPassword;TrustServerCertificate=true"
 ```
 
 ## Klasör Yapısı
@@ -212,6 +226,6 @@ JwtBackendApi/
 ├── Models/               # Entity ve DTO'lar
 ├── Services/             # İş mantığı katmanı
 ├── Properties/           # Launch ayarları
-├── appsettings.json      # Production ayarları
-└── appsettings.Development.json  # Development ayarları
+├── appsettings.json      # Production ayarları (SQL Server)
+└── appsettings.Development.json  # Development ayarları (LocalDB)
 ```

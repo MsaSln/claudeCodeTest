@@ -52,8 +52,8 @@
 
 ### Documentation & Tools
 - Swagger/OpenAPI
-- Docker & Docker Compose
-- pgAdmin 4
+- Visual Studio 2022
+- pgAdmin 4 (opsiyonel)
 
 ## Proje Yapısı
 
@@ -106,8 +106,10 @@ database/
 ├── init.sql                        # PostgreSQL initialization script
 └── install-packages.sh             # NuGet packages install script
 
-docker-compose.yml                  # Docker Compose configuration
+JwtBackendApi.sln                   # Visual Studio Solution file
+VISUAL_STUDIO_SETUP.md              # Visual Studio kurulum rehberi
 DATABASE_SETUP.md                   # Database setup documentation
+docker-compose.yml                  # Docker Compose configuration (opsiyonel)
 ```
 
 ## Veri Modeli
@@ -139,37 +141,43 @@ Screen (1) ──< (N) ScreenAction (1)            ScreenPermission
 
 ### Ön Gereksinimler
 
-- .NET 8.0 SDK
-- Docker & Docker Compose (önerilen)
-- PostgreSQL 16+ (manuel kurulum için)
+- **Visual Studio 2022** (17.8 veya üzeri önerilir)
+  - ASP.NET and web development workload
+  - .NET 8.0 SDK
+- **PostgreSQL 16+**
 
-### Hızlı Başlangıç (Docker ile)
+### Visual Studio ile Hızlı Başlangıç (Önerilen)
 
-1. Projeyi klonlayın
-```bash
-git clone <repository-url>
-cd claudeCodeTest
-```
+Detaylı kurulum adımları için **[VISUAL_STUDIO_SETUP.md](VISUAL_STUDIO_SETUP.md)** dosyasına bakın.
 
-2. PostgreSQL ve pgAdmin'i başlatın
-```bash
-docker-compose up -d
-```
+#### Kısa Özet:
 
-3. NuGet paketlerini restore edin
-```bash
-cd JwtBackendApi
-dotnet restore
-```
+1. **PostgreSQL Kurulumu**
+   - [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) adresinden indirin
+   - Kurulum sırasında belirlediğiniz şifreyi not edin
 
-4. Uygulamayı çalıştırın
-```bash
-dotnet run
-```
+2. **Veritabanı Oluşturma**
+   - pgAdmin veya psql ile `jwtbackendapi_dev` veritabanını oluşturun
 
-Uygulama varsayılan olarak `https://localhost:7xxx` ve `http://localhost:5xxx` adreslerinde çalışacaktır.
+3. **Connection String Güncelleme**
 
-### Manuel Kurulum
+   `JwtBackendApi/appsettings.Development.json` dosyasında şifreyi güncelleyin:
+   ```json
+   {
+     "ConnectionStrings": {
+       "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi_dev;Username=postgres;Password=SizinSifreniz"
+     }
+   }
+   ```
+
+4. **Visual Studio ile Açma**
+   - `JwtBackendApi.sln` dosyasını Visual Studio ile açın
+   - F5 ile çalıştırın
+
+5. **Test**
+   - Swagger UI otomatik açılacaktır: https://localhost:7262/swagger
+
+### Komut Satırı ile Kurulum
 
 1. .NET 8.0 SDK'nın yüklü olduğundan emin olun
 ```bash
@@ -191,27 +199,36 @@ brew install postgresql@16
 3. Database oluşturun
 ```bash
 sudo -u postgres psql
-CREATE DATABASE jwtbackendapi;
+CREATE DATABASE jwtbackendapi_dev;
 \q
 ```
 
-4. SQL scriptini çalıştırın
-```bash
-psql -U postgres -d jwtbackendapi -f database/init.sql
-```
-
-5. Connection string'i güncelleyin
+4. Connection string'i güncelleyin
 ```json
-// appsettings.json
+// appsettings.Development.json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi;Username=postgres;Password=YourPassword"
+    "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi_dev;Username=postgres;Password=YourPassword"
   }
 }
 ```
 
-6. Uygulamayı çalıştırın
+5. Uygulamayı çalıştırın
 ```bash
+cd JwtBackendApi
+dotnet restore
+dotnet run
+```
+
+### Docker ile Kurulum (Alternatif)
+
+Docker kullanmak isterseniz:
+
+```bash
+# PostgreSQL ve pgAdmin'i başlat
+docker-compose up -d
+
+# Uygulamayı çalıştır
 cd JwtBackendApi
 dotnet restore
 dotnet run
@@ -233,19 +250,25 @@ dotnet ef database update
 
 **Not:** Uygulama ilk çalıştırıldığında `DbInitializer` otomatik olarak seed data ekler.
 
-### Docker Servisleri
+### Veritabanı Bağlantı Bilgileri
 
-**PostgreSQL:**
+**Development (Varsayılan):**
 - Host: `localhost`
 - Port: `5432`
-- Database: `jwtbackendapi`
+- Database: `jwtbackendapi_dev`
 - Username: `postgres`
-- Password: `postgres`
+- Password: `(kurulumda belirlediğiniz şifre)`
 
-**pgAdmin (Web UI):**
-- URL: `http://localhost:5050`
-- Email: `admin@example.com`
-- Password: `admin`
+**Docker Kullanıyorsanız (Opsiyonel):**
+
+Docker ile PostgreSQL ve pgAdmin çalıştırabilirsiniz:
+
+```bash
+docker-compose up -d
+```
+
+- **PostgreSQL:** `localhost:5432` (user: postgres, pass: postgres)
+- **pgAdmin:** `http://localhost:5050` (email: admin@example.com, pass: admin)
 
 ### Varsayılan Admin Kullanıcısı
 

@@ -1,17 +1,29 @@
-# JWT Backend API
+# JWT Backend API with Role & Permission Management
 
-.NET Core 8.0 ile geliştirilmiş, JWT (JSON Web Token) authentication kullanan güvenli bir RESTful Web API projesi.
+.NET Core 8.0 ile geliştirilmiş, JWT (JSON Web Token) authentication ve kapsamlı rol/yetki yönetimi kullanan güvenli bir RESTful Web API projesi.
 
 ## Özellikler
 
+### Authentication & Authorization
 - JWT Token tabanlı authentication
 - Güvenli kullanıcı kaydı ve girişi
-- Role-based authorization (Admin, User)
-- RESTful API best practices
-- Swagger/OpenAPI dokümantasyonu
-- CORS desteği
-- Model validasyonu
+- Role-based authorization (Admin, User, vb.)
 - Güvenli password hashing (SHA256)
+
+### Rol ve Yetki Yönetimi
+- **Kullanıcı Grupları (User Groups):** Esnek rol tanımlama sistemi
+- **Çoklu Grup Üyeliği:** Bir kullanıcı birden fazla gruba dahil olabilir
+- **Ekran Bazlı Yetkiler:** Her ekran için özel aksiyonlar tanımlayabilme
+- **Granüler İzin Kontrolü:** Ekran-aksiyon seviyesinde detaylı yetkilendirme
+- **Dinamik Yetki Yönetimi:** Çalışma zamanında yetki atama/kaldırma
+
+### Teknik Özellikler
+- RESTful API best practices
+- Comprehensive Swagger/OpenAPI dokümantasyonu
+- CORS desteği
+- Model validasyonu (DataAnnotations)
+- Structured logging
+- Dependency Injection
 
 ## Teknolojiler
 
@@ -27,20 +39,61 @@
 ```
 JwtBackendApi/
 ├── Controllers/
-│   ├── AuthController.cs       # Kayıt ve giriş işlemleri
-│   └── SecureController.cs     # Korumalı endpoint'ler
+│   ├── AuthController.cs           # Kayıt ve giriş işlemleri
+│   ├── SecureController.cs         # Örnek korumalı endpoint'ler
+│   ├── UserGroupController.cs      # Kullanıcı grubu yönetimi
+│   ├── ScreenController.cs         # Ekran ve aksiyon yönetimi
+│   └── PermissionController.cs     # İzin yönetimi ve kontrol
 ├── Models/
-│   ├── User.cs                 # Kullanıcı modeli
-│   ├── LoginDto.cs            # Giriş DTO
-│   ├── RegisterDto.cs         # Kayıt DTO
-│   ├── AuthResponse.cs        # Authentication cevap modeli
-│   └── JwtSettings.cs         # JWT ayarları modeli
+│   ├── User.cs                     # Kullanıcı modeli
+│   ├── UserGroup.cs                # Kullanıcı grubu modeli
+│   ├── Screen.cs                   # Ekran modeli
+│   ├── ScreenAction.cs             # Ekran aksiyonu modeli
+│   ├── ScreenPermission.cs         # İzin modeli
+│   ├── UserGroupMembership.cs      # Kullanıcı-grup ilişkisi
+│   ├── JwtSettings.cs              # JWT ayarları
+│   └── DTOs/                       # Data Transfer Objects
+│       ├── UserGroupDto.cs
+│       ├── ScreenDto.cs
+│       ├── ScreenActionDto.cs
+│       └── PermissionDto.cs
 ├── Services/
-│   ├── IAuthService.cs        # Authentication servis interface
-│   └── AuthService.cs         # Authentication servis implementasyonu
-├── Program.cs                  # Uygulama başlangıç noktası
-└── appsettings.json           # Konfigürasyon dosyası
+│   ├── IAuthService.cs             # Authentication servis interface
+│   ├── AuthService.cs              # Authentication servisi
+│   ├── IUserGroupService.cs        # User group servis interface
+│   ├── UserGroupService.cs         # User group servisi
+│   ├── IScreenService.cs           # Screen servis interface
+│   ├── ScreenService.cs            # Screen servisi
+│   ├── IPermissionService.cs       # Permission servis interface
+│   └── PermissionService.cs        # Permission servisi
+├── Program.cs                      # Uygulama başlangıç noktası
+└── appsettings.json               # Konfigürasyon dosyası
 ```
+
+## Veri Modeli
+
+### İlişkisel Yapı
+
+```
+User (1) ─────< (N) UserGroupMembership (N) >───── (1) UserGroup
+                                                           │
+                                                           │ (1)
+                                                           │
+                                                           ▼
+Screen (1) ──< (N) ScreenAction (1)            ScreenPermission
+     │                  ▲                             │
+     │                  │                             │
+     └──────────────────┴─────────────────────────────┘
+```
+
+### Temel Modeller
+
+- **User:** Kullanıcı bilgileri
+- **UserGroup:** Rol/grup tanımları (Administrators, Managers, Users, vb.)
+- **UserGroupMembership:** Kullanıcı-grup ilişkileri (many-to-many)
+- **Screen:** Ekran/sayfa tanımları (Dashboard, Users, Settings, vb.)
+- **ScreenAction:** Ekran aksiyonları (view, create, edit, delete, export, vb.)
+- **ScreenPermission:** Grup-ekran-aksiyon izinleri
 
 ## Kurulum
 
@@ -64,7 +117,7 @@ Uygulama varsayılan olarak `https://localhost:7xxx` ve `http://localhost:5xxx` 
 
 ## API Endpoints
 
-### Authentication Endpoints (Public)
+### 1. Authentication (Public)
 
 #### Kullanıcı Kaydı
 ```http
@@ -75,22 +128,6 @@ Content-Type: application/json
   "username": "testuser",
   "email": "test@example.com",
   "password": "password123"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "User registered successfully",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresAt": "2026-01-17T08:24:00Z",
-  "user": {
-    "id": 1,
-    "username": "testuser",
-    "email": "test@example.com",
-    "role": "User"
-  }
 }
 ```
 
@@ -105,103 +142,298 @@ Content-Type: application/json
 }
 ```
 
-**Response:**
-```json
+### 2. User Group Management (Admin Only)
+
+#### Tüm Grupları Listele
+```http
+GET /api/usergroup
+Authorization: Bearer {token}
+```
+
+#### Yeni Grup Oluştur
+```http
+POST /api/usergroup
+Authorization: Bearer {token}
+Content-Type: application/json
+
 {
-  "success": true,
-  "message": "Login successful",
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresAt": "2026-01-17T08:24:00Z",
-  "user": {
-    "id": 1,
-    "username": "testuser",
-    "email": "test@example.com",
-    "role": "User"
-  }
+  "name": "Developers",
+  "description": "Development team members",
+  "isActive": true
 }
 ```
 
-### Secure Endpoints (Authentication Required)
-
-Tüm güvenli endpoint'ler için Authorization header'ında Bearer token gönderilmelidir:
-
+#### Grup Güncelle
 ```http
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+PUT /api/usergroup/{id}
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "Senior Developers",
+  "description": "Senior development team",
+  "isActive": true
+}
 ```
 
-#### Kullanıcı Profili
+#### Grup Sil
 ```http
-GET /api/secure/profile
+DELETE /api/usergroup/{id}
+Authorization: Bearer {token}
+```
+
+### 3. Screen Management (Admin Only)
+
+#### Tüm Ekranları Listele
+```http
+GET /api/screen
+Authorization: Bearer {token}
+```
+
+#### Yeni Ekran Oluştur
+```http
+POST /api/screen
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "Reports",
+  "displayName": "Raporlar",
+  "description": "Rapor ekranları",
+  "route": "/reports",
+  "icon": "chart",
+  "order": 4,
+  "isActive": true
+}
+```
+
+#### Ekrana Aksiyon Ekle
+```http
+POST /api/screen/actions
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "screenId": 1,
+  "actionName": "export",
+  "displayName": "Dışa Aktar",
+  "description": "Verileri dışa aktarma yetkisi",
+  "isActive": true
+}
+```
+
+### 4. Permission Management (Admin Only)
+
+#### Gruba İzin Ata
+```http
+POST /api/permission/assign
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "userGroupId": 2,
+  "screenId": 1,
+  "screenActionIds": [1, 2, 3],
+  "isGranted": true
+}
+```
+
+#### Kullanıcıyı Gruplara Ata
+```http
+POST /api/permission/user/assign-groups
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "userGroupIds": [2, 3]
+}
+```
+
+#### Kullanıcının İzinlerini Görüntüle
+```http
+GET /api/permission/user/{userId}/screens
 Authorization: Bearer {token}
 ```
 
 **Response:**
 ```json
 {
-  "userId": "1",
+  "userId": 1,
   "username": "testuser",
-  "email": "test@example.com",
-  "role": "User",
-  "message": "This is a secure endpoint. You are authenticated!"
+  "screens": [
+    {
+      "screenId": 1,
+      "screenName": "Dashboard",
+      "displayName": "Ana Sayfa",
+      "route": "/dashboard",
+      "icon": "dashboard",
+      "allowedActions": ["view", "export"]
+    },
+    {
+      "screenId": 2,
+      "screenName": "Users",
+      "displayName": "Kullanıcılar",
+      "route": "/users",
+      "icon": "people",
+      "allowedActions": ["view", "create", "edit"]
+    }
+  ]
 }
 ```
 
-#### Korumalı Veri
+#### İzin Kontrolü
 ```http
-GET /api/secure/data
+POST /api/permission/check
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "userId": 1,
+  "screenName": "Users",
+  "actionName": "create"
+}
+```
+
+**Response:**
+```json
+{
+  "hasPermission": true,
+  "message": "User has permission to create on Users",
+  "userGroups": ["Managers", "Users"]
+}
+```
+
+#### Mevcut Kullanıcının İzinlerini Getir
+```http
+GET /api/permission/my-permissions
+Authorization: Bearer {token}
+```
+
+#### Basit İzin Kontrolü
+```http
+GET /api/permission/can-access/Users/create
 Authorization: Bearer {token}
 ```
 
 **Response:**
 ```json
 {
-  "message": "This is protected data",
-  "data": [
-    {
-      "id": 1,
-      "title": "Secure Item 1",
-      "description": "This data requires authentication"
-    }
-  ],
-  "accessedBy": "testuser",
-  "accessedAt": "2026-01-17T07:24:00Z"
+  "screenName": "Users",
+  "actionName": "create",
+  "hasPermission": true,
+  "message": "Access granted"
 }
 ```
 
-#### Admin Endpoint (Admin Role Required)
-```http
-GET /api/secure/admin
-Authorization: Bearer {token}
-```
+## Kullanım Senaryoları
 
-**Response (Admin only):**
-```json
+### Senaryo 1: Yeni Bir Rol Oluşturma ve Yetkilendirme
+
+```bash
+# 1. Yeni bir grup oluştur
+POST /api/usergroup
 {
-  "message": "This is admin-only data",
-  "adminInfo": "Only users with Admin role can access this endpoint",
-  "accessedBy": "adminuser"
+  "name": "Content Editors",
+  "description": "İçerik düzenleme ekibi"
+}
+
+# 2. Gruba ekran yetkilerini ata
+POST /api/permission/assign
+{
+  "userGroupId": 4,
+  "screenId": 5,  # Blog ekranı
+  "screenActionIds": [1, 2, 3],  # view, create, edit
+  "isGranted": true
+}
+
+# 3. Kullanıcıyı bu gruba ekle
+POST /api/permission/user/assign-groups
+{
+  "userId": 10,
+  "userGroupIds": [4]
 }
 ```
 
-## JWT Konfigürasyonu
+### Senaryo 2: Dinamik Menü Oluşturma
 
-`appsettings.json` dosyasında JWT ayarlarını yapılandırabilirsiniz:
-
-```json
-{
-  "JwtSettings": {
-    "SecretKey": "ThisIsASecretKeyForJwtTokenGeneration12345678",
-    "Issuer": "JwtBackendApi",
-    "Audience": "JwtBackendApiUsers",
-    "ExpirationMinutes": 60
+```javascript
+// Frontend tarafında kullanıcının erişebileceği menüleri getir
+const response = await fetch('/api/permission/my-permissions', {
+  headers: {
+    'Authorization': `Bearer ${token}`
   }
+});
+
+const data = await response.json();
+
+// data.screens ile dinamik menü oluştur
+const menu = data.screens.map(screen => ({
+  name: screen.displayName,
+  route: screen.route,
+  icon: screen.icon,
+  actions: screen.allowedActions
+}));
+```
+
+### Senaryo 3: Aksiyon Bazlı Buton Kontrolü
+
+```javascript
+// Belirli bir aksiyona erişim kontrolü
+const canCreate = await fetch(
+  '/api/permission/can-access/Users/create',
+  {
+    headers: { 'Authorization': `Bearer ${token}` }
+  }
+);
+
+const result = await canCreate.json();
+
+if (result.hasPermission) {
+  // "Yeni Kullanıcı Ekle" butonunu göster
 }
 ```
 
-**Önemli:** Production ortamında:
-- `SecretKey` değerini güçlü ve benzersiz bir değerle değiştirin
-- Environment variables veya Azure Key Vault gibi güvenli bir yerde saklayın
-- `RequireHttpsMetadata` ayarını `true` yapın
+## Varsayılan Veriler
+
+Sistem şu varsayılan verilerle başlar:
+
+### User Groups
+1. **Administrators** - Tam sistem erişimi
+2. **Managers** - Yönetici seviyesi erişim
+3. **Users** - Standart kullanıcı erişimi
+
+### Screens
+1. **Dashboard** - Ana sayfa
+2. **Users** - Kullanıcı yönetimi
+3. **Settings** - Sistem ayarları
+
+### Screen Actions
+- **view** - Görüntüleme
+- **create** - Oluşturma
+- **edit** - Düzenleme
+- **delete** - Silme
+- **export** - Dışa aktarma
+
+## Güvenlik Özellikleri
+
+- **JWT Token Authentication:** Her istek için token doğrulaması
+- **Password Hashing:** Şifreler SHA256 ile hash'lenerek saklanır
+- **Role-Based Authorization:** Controller seviyesinde rol kontrolü
+- **Granular Permissions:** Ekran-aksiyon bazında detaylı yetkilendirme
+- **Model Validation:** DataAnnotations ile veri doğrulama
+- **CORS Policy:** Yapılandırılabilir CORS politikası
+- **HTTPS Redirection:** Güvenli iletişim
+
+## HTTP Status Kodları
+
+- `200 OK` - İstek başarılı
+- `201 Created` - Kaynak oluşturuldu
+- `400 Bad Request` - Geçersiz istek
+- `401 Unauthorized` - Authentication gerekli
+- `403 Forbidden` - Yetkisiz erişim
+- `404 Not Found` - Kaynak bulunamadı
+- `500 Internal Server Error` - Sunucu hatası
 
 ## Swagger UI
 
@@ -210,54 +442,98 @@ Uygulama çalıştığında Swagger UI'ye şu adresten erişebilirsiniz:
 https://localhost:7xxx/swagger
 ```
 
-Swagger UI'de:
-1. `/api/auth/register` veya `/api/auth/login` endpoint'ini kullanarak token alın
+Swagger UI kullanımı:
+1. `/api/auth/register` veya `/api/auth/login` ile token alın
 2. Sağ üst köşedeki "Authorize" butonuna tıklayın
 3. `Bearer {token}` formatında token'ı girin
-4. Artık korumalı endpoint'leri test edebilirsiniz
-
-## Güvenlik Özellikleri
-
-- **JWT Token Authentication:** Her istek için token doğrulaması
-- **Password Hashing:** Şifreler SHA256 ile hash'lenerek saklanır
-- **Model Validation:** Gelen veriler DataAnnotations ile doğrulanır
-- **Role-Based Authorization:** Farklı roller için farklı erişim seviyeleri
-- **CORS Policy:** Cross-origin requests için yapılandırılabilir
-- **HTTPS Redirection:** Güvenli iletişim için HTTP'den HTTPS'e yönlendirme
-
-## HTTP Status Kodları
-
-API aşağıdaki HTTP status kodlarını kullanır:
-
-- `200 OK` - İstek başarılı
-- `400 Bad Request` - Geçersiz istek verisi
-- `401 Unauthorized` - Authentication gerekli veya token geçersiz
-- `403 Forbidden` - Yetkisiz erişim (role problemi)
-- `500 Internal Server Error` - Sunucu hatası
+4. Artık tüm endpoint'leri test edebilirsiniz
 
 ## Best Practices
 
-Bu proje aşağıdaki industry best practices'i takip eder:
+Bu proje aşağıdaki best practices'i takip eder:
 
-1. **RESTful Design:** Resource-based URL yapısı
-2. **DTO Pattern:** Data Transfer Objects ile güvenli veri transferi
-3. **Dependency Injection:** Loosely coupled mimari
-4. **Interface Segregation:** Servisler için interface kullanımı
-5. **Proper HTTP Methods:** GET, POST, PUT, DELETE doğru kullanımı
-6. **Proper Status Codes:** Anlamlı HTTP status kodları
-7. **API Documentation:** Swagger/OpenAPI ile detaylı dokümantasyon
-8. **Validation:** Model state validation
-9. **Logging:** Structured logging ile önemli olayların kaydı
-10. **Error Handling:** Consistent error response formatı
+1. **RESTful Design** - Resource-based URL yapısı
+2. **DTO Pattern** - Data Transfer Objects ile güvenli veri transferi
+3. **Dependency Injection** - Loosely coupled mimari
+4. **Interface Segregation** - Servisler için interface kullanımı
+5. **Single Responsibility** - Her sınıf tek bir sorumluluk
+6. **Proper HTTP Methods** - GET, POST, PUT, DELETE doğru kullanımı
+7. **Proper Status Codes** - Anlamlı HTTP status kodları
+8. **Comprehensive Documentation** - Swagger/OpenAPI ile detaylı dokümantasyon
+9. **Validation** - Model state validation
+10. **Structured Logging** - Önemli olayların kaydı
+11. **Error Handling** - Consistent error response formatı
+12. **Separation of Concerns** - Controller, Service, Model ayrımı
 
-## Notlar
+## Gelişmiş Özellikler
 
-- Bu proje demo amaçlıdır ve in-memory user storage kullanır
-- Production ortamında Entity Framework Core ile gerçek bir veritabanı kullanılmalıdır
-- Password hashing için BCrypt veya PBKDF2 tercih edilmelidir
-- Refresh token mekanizması eklenebilir
-- Rate limiting implementasyonu önerilir
+### Hiyerarşik Ekranlar
+Ekranlar parent-child ilişkisi ile hiyerarşik yapıda düzenlenebilir:
+
+```json
+{
+  "name": "UserDetail",
+  "displayName": "Kullanıcı Detayı",
+  "parentScreenId": 2,  // Users ekranının child'ı
+  "route": "/users/:id"
+}
+```
+
+### Özel Aksiyonlar
+Her ekran için özel aksiyonlar tanımlanabilir:
+
+```json
+{
+  "screenId": 2,
+  "actionName": "reset-password",
+  "displayName": "Şifre Sıfırla"
+}
+```
+
+### Çoklu Grup Üyeliği
+Bir kullanıcı birden fazla gruba dahil olabilir:
+
+```json
+{
+  "userId": 1,
+  "userGroupIds": [1, 2, 3]  // Admin, Manager ve User
+}
+```
+
+İzinler birleştirilerek (union) değerlendirilir.
+
+## Production Notları
+
+Production ortamında aşağıdaki değişiklikleri yapın:
+
+1. **JWT SecretKey:** Güçlü ve benzersiz bir key kullanın
+2. **Environment Variables:** Hassas bilgileri environment variables'da saklayın
+3. **HTTPS:** `RequireHttpsMetadata = true` yapın
+4. **CORS:** Sadece güvenilir origin'lere izin verin
+5. **Database:** Entity Framework Core ile gerçek veritabanı kullanın
+6. **Password Hashing:** BCrypt veya PBKDF2 kullanın
+7. **Rate Limiting:** API rate limiting ekleyin
+8. **Logging:** Application Insights veya Serilog kullanın
+9. **Caching:** Redis gibi distributed cache kullanın
+10. **Refresh Tokens:** Token yenileme mekanizması ekleyin
+
+## Gelecek Geliştirmeler
+
+- [ ] Entity Framework Core entegrasyonu
+- [ ] Refresh token mekanizması
+- [ ] Audit logging (kim, ne zaman, ne yaptı)
+- [ ] İzin değişiklik geçmişi
+- [ ] Bulk permission assignment
+- [ ] Permission templates
+- [ ] Time-based permissions (geçici yetkiler)
+- [ ] IP-based access control
+- [ ] Two-factor authentication
+- [ ] Rate limiting
 
 ## Lisans
 
 Bu proje eğitim amaçlı oluşturulmuştur.
+
+## Destek
+
+Sorularınız için issue açabilirsiniz.

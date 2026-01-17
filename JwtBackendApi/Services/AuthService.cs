@@ -111,6 +111,16 @@ public class AuthService : IAuthService
         return _users.FirstOrDefault(u => u.Username == username);
     }
 
+    public async Task<User?> GetUserByIdAsync(int userId)
+    {
+        return _users.FirstOrDefault(u => u.Id == userId);
+    }
+
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        return await Task.FromResult(_users.ToList());
+    }
+
     private string GenerateJwtToken(User user)
     {
         var securityKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_jwtSettings.SecretKey));

@@ -42,6 +42,9 @@ builder.Services.AddAuthorization();
 
 // Register Services
 builder.Services.AddSingleton<IAuthService, AuthService>();
+builder.Services.AddSingleton<IUserGroupService, UserGroupService>();
+builder.Services.AddSingleton<IScreenService, ScreenService>();
+builder.Services.AddSingleton<IPermissionService, PermissionService>();
 
 // Add Controllers
 builder.Services.AddControllers();
@@ -63,9 +66,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo
     {
-        Title = "JWT Backend API",
+        Title = "JWT Backend API with Role & Permission Management",
         Version = "v1",
-        Description = "A secure .NET Core Web API with JWT authentication",
+        Description = "A secure .NET Core Web API with JWT authentication, role-based access control, and screen-level permission management",
         Contact = new OpenApiContact
         {
             Name = "API Support",

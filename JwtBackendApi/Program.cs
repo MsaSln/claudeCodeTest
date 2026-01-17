@@ -45,6 +45,7 @@ builder.Services.AddSingleton<IAuthService, AuthService>();
 builder.Services.AddSingleton<IUserGroupService, UserGroupService>();
 builder.Services.AddSingleton<IScreenService, ScreenService>();
 builder.Services.AddSingleton<IPermissionService, PermissionService>();
+builder.Services.AddSingleton<IMenuService, MenuService>();
 
 // Add Controllers
 builder.Services.AddControllers();

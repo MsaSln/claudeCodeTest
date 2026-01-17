@@ -17,6 +17,14 @@
 - **Granüler İzin Kontrolü:** Ekran-aksiyon seviyesinde detaylı yetkilendirme
 - **Dinamik Yetki Yönetimi:** Çalışma zamanında yetki atama/kaldırma
 
+### Menü Yönetimi
+- **Dinamik Menü Sistemi:** Esnek sidebar ve header menü yapısı
+- **Hiyerarşik Menüler:** Grup ve alt menü desteği
+- **Yetki Bazlı Görünürlük:** Kullanıcının yetkili olduğu ekranlar otomatik filtrelenir
+- **Konum Kontrolü:** Menülerin sidebar veya header'da gösterilmesi
+- **Grup ve Ekran Desteği:** Menüye hem grup (kategori) hem de direkt ekran eklenebilir
+- **Badge Desteği:** Menü öğelerine badge/etiket eklenebilir
+
 ### Teknik Özellikler
 - RESTful API best practices
 - Comprehensive Swagger/OpenAPI dokümantasyonu
@@ -43,7 +51,8 @@ JwtBackendApi/
 │   ├── SecureController.cs         # Örnek korumalı endpoint'ler
 │   ├── UserGroupController.cs      # Kullanıcı grubu yönetimi
 │   ├── ScreenController.cs         # Ekran ve aksiyon yönetimi
-│   └── PermissionController.cs     # İzin yönetimi ve kontrol
+│   ├── PermissionController.cs     # İzin yönetimi ve kontrol
+│   └── MenuController.cs           # Menü yönetimi
 ├── Models/
 │   ├── User.cs                     # Kullanıcı modeli
 │   ├── UserGroup.cs                # Kullanıcı grubu modeli
@@ -51,12 +60,17 @@ JwtBackendApi/
 │   ├── ScreenAction.cs             # Ekran aksiyonu modeli
 │   ├── ScreenPermission.cs         # İzin modeli
 │   ├── UserGroupMembership.cs      # Kullanıcı-grup ilişkisi
+│   ├── Menu.cs                     # Menü modeli
+│   ├── MenuItem.cs                 # Menü elemanı modeli
+│   ├── MenuLocation.cs             # Menü konumu (Sidebar/Header)
+│   ├── MenuItemType.cs             # Menü elemanı tipi (Group/Screen)
 │   ├── JwtSettings.cs              # JWT ayarları
 │   └── DTOs/                       # Data Transfer Objects
 │       ├── UserGroupDto.cs
 │       ├── ScreenDto.cs
 │       ├── ScreenActionDto.cs
-│       └── PermissionDto.cs
+│       ├── PermissionDto.cs
+│       └── MenuDto.cs
 ├── Services/
 │   ├── IAuthService.cs             # Authentication servis interface
 │   ├── AuthService.cs              # Authentication servisi
@@ -65,7 +79,9 @@ JwtBackendApi/
 │   ├── IScreenService.cs           # Screen servis interface
 │   ├── ScreenService.cs            # Screen servisi
 │   ├── IPermissionService.cs       # Permission servis interface
-│   └── PermissionService.cs        # Permission servisi
+│   ├── PermissionService.cs        # Permission servisi
+│   ├── IMenuService.cs             # Menu servis interface
+│   └── MenuService.cs              # Menu servisi
 ├── Program.cs                      # Uygulama başlangıç noktası
 └── appsettings.json               # Konfigürasyon dosyası
 ```
@@ -326,6 +342,134 @@ Authorization: Bearer {token}
 }
 ```
 
+### 5. Menu Management (Admin Only)
+
+#### Tüm Menüleri Listele
+```http
+GET /api/menu
+Authorization: Bearer {token}
+```
+
+#### Yeni Menü Oluştur
+```http
+POST /api/menu
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "AdminMenu",
+  "displayName": "Admin Menüsü",
+  "description": "Yönetici menüsü",
+  "location": 1,  // 1: Sidebar, 2: Header
+  "order": 1,
+  "isActive": true
+}
+```
+
+#### Menüye Ekran Ekle
+```http
+POST /api/menu/items
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "menuId": 1,
+  "itemType": 2,  // 1: Group, 2: Screen
+  "screenId": 2,
+  "displayName": "Kullanıcılar",
+  "icon": "people",
+  "route": "/users",
+  "order": 1,
+  "isActive": true
+}
+```
+
+#### Menüye Grup (Kategori) Ekle
+```http
+POST /api/menu/items
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "menuId": 1,
+  "itemType": 1,  // Group
+  "displayName": "Yönetim",
+  "icon": "settings",
+  "order": 2,
+  "isActive": true
+}
+```
+
+#### Grup Altına Ekran Ekle
+```http
+POST /api/menu/items
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "menuId": 1,
+  "parentMenuItemId": 2,  // Yönetim grubunun ID'si
+  "itemType": 2,  // Screen
+  "screenId": 3,
+  "displayName": "Ayarlar",
+  "icon": "settings",
+  "route": "/settings",
+  "order": 1,
+  "isActive": true
+}
+```
+
+#### Kullanıcının Menülerini Getir (Yetki Filtreli)
+```http
+GET /api/menu/my-menus
+Authorization: Bearer {token}
+```
+
+**Response:**
+```json
+{
+  "sidebarMenus": [
+    {
+      "id": 1,
+      "name": "MainSidebar",
+      "displayName": "Ana Menü",
+      "location": 1,
+      "order": 1,
+      "items": [
+        {
+          "id": 1,
+          "displayName": "Ana Sayfa",
+          "icon": "dashboard",
+          "route": "/dashboard",
+          "itemType": 2,
+          "screenId": 1,
+          "hasPermission": true,
+          "children": []
+        },
+        {
+          "id": 2,
+          "displayName": "Yönetim",
+          "icon": "settings",
+          "itemType": 1,
+          "hasPermission": true,
+          "children": [
+            {
+              "id": 3,
+              "displayName": "Kullanıcılar",
+              "icon": "people",
+              "route": "/users",
+              "screenId": 2,
+              "hasPermission": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "headerMenus": []
+}
+```
+
 ## Kullanım Senaryoları
 
 ### Senaryo 1: Yeni Bir Rol Oluşturma ve Yetkilendirme
@@ -394,6 +538,93 @@ if (result.hasPermission) {
 }
 ```
 
+### Senaryo 4: Dinamik Menü Sistemi Kurulumu
+
+```bash
+# 1. Yeni bir menü oluştur (Sidebar)
+POST /api/menu
+{
+  "name": "MainSidebar",
+  "displayName": "Ana Menü",
+  "location": 1,  # Sidebar
+  "order": 1
+}
+
+# 2. Ana menüye dashboard ekranı ekle
+POST /api/menu/items
+{
+  "menuId": 1,
+  "itemType": 2,  # Screen
+  "screenId": 1,
+  "displayName": "Ana Sayfa",
+  "icon": "dashboard",
+  "order": 1
+}
+
+# 3. "Yönetim" grubu oluştur
+POST /api/menu/items
+{
+  "menuId": 1,
+  "itemType": 1,  # Group
+  "displayName": "Yönetim",
+  "icon": "settings",
+  "order": 2
+}
+
+# 4. Yönetim grubu altına ekranlar ekle
+POST /api/menu/items
+{
+  "menuId": 1,
+  "parentMenuItemId": 2,  # Yönetim grubu
+  "itemType": 2,
+  "screenId": 2,
+  "displayName": "Kullanıcılar",
+  "order": 1
+}
+
+# 5. Frontend'de kullanıcının menüsünü al
+GET /api/menu/my-menus
+# Kullanıcının yetkili olduğu ekranlar otomatik filtrelenir
+```
+
+### Senaryo 5: Frontend Menü Entegrasyonu
+
+```javascript
+// Kullanıcının menülerini al (yetki filtreli)
+const response = await fetch('/api/menu/my-menus', {
+  headers: {
+    'Authorization': `Bearer ${token}`
+  }
+});
+
+const menuData = await response.json();
+
+// Sidebar menüsünü render et
+const sidebarMenu = menuData.sidebarMenus[0];
+
+function renderMenu(items) {
+  return items.map(item => {
+    if (item.itemType === 1) { // Group
+      return {
+        label: item.displayName,
+        icon: item.icon,
+        items: renderMenu(item.children) // Alt öğeleri render et
+      };
+    } else { // Screen
+      return {
+        label: item.displayName,
+        icon: item.icon,
+        to: item.route,
+        badge: item.badgeText,
+        badgeColor: item.badgeColor
+      };
+    }
+  });
+}
+
+const menuStructure = renderMenu(sidebarMenu.items);
+```
+
 ## Varsayılan Veriler
 
 Sistem şu varsayılan verilerle başlar:
@@ -414,6 +645,16 @@ Sistem şu varsayılan verilerle başlar:
 - **edit** - Düzenleme
 - **delete** - Silme
 - **export** - Dışa aktarma
+
+### Menus
+1. **MainSidebar** - Sol taraf ana menü (Sidebar)
+2. **TopHeader** - Üst header menüsü (Header)
+
+### Menu Items (MainSidebar)
+- Ana Sayfa (Screen - Dashboard)
+- Yönetim (Group)
+  - Kullanıcılar (Screen - Users)
+  - Ayarlar (Screen - Settings)
 
 ## Güvenlik Özellikleri
 

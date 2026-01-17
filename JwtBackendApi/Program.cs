@@ -1,11 +1,20 @@
 using System.Text;
+using JwtBackendApi.Data;
 using JwtBackendApi.Models;
 using JwtBackendApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure Database
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseNpgsql(connectionString));
 
 // Configure JWT Settings
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -40,12 +49,12 @@ builder.Services.AddAuthentication(options =>
 // Add Authorization
 builder.Services.AddAuthorization();
 
-// Register Services
-builder.Services.AddSingleton<IAuthService, AuthService>();
-builder.Services.AddSingleton<IUserGroupService, UserGroupService>();
-builder.Services.AddSingleton<IScreenService, ScreenService>();
-builder.Services.AddSingleton<IPermissionService, PermissionService>();
-builder.Services.AddSingleton<IMenuService, MenuService>();
+// Register Services (Scoped for DbContext)
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IUserGroupService, UserGroupService>();
+builder.Services.AddScoped<IScreenService, ScreenService>();
+builder.Services.AddScoped<IPermissionService, PermissionService>();
+builder.Services.AddScoped<IMenuService, MenuService>();
 
 // Add Controllers
 builder.Services.AddControllers();
@@ -104,6 +113,22 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Initialize Database
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    try
+    {
+        var context = services.GetRequiredService<ApplicationDbContext>();
+        DbInitializer.Initialize(context);
+    }
+    catch (Exception ex)
+    {
+        var logger = services.GetRequiredService<ILogger<Program>>();
+        logger.LogError(ex, "An error occurred while seeding the database.");
+    }
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

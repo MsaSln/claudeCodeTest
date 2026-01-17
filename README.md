@@ -35,12 +35,25 @@
 
 ## Teknolojiler
 
+### Backend Framework
 - .NET 8.0
 - ASP.NET Core Web API
+- Entity Framework Core 8.0
+
+### Database
+- PostgreSQL 16
+- Npgsql Entity Framework Core Provider
+
+### Authentication & Security
 - JWT Bearer Authentication
-- Swagger/OpenAPI
 - Microsoft.AspNetCore.Authentication.JwtBearer
 - System.IdentityModel.Tokens.Jwt
+- SHA256 Password Hashing
+
+### Documentation & Tools
+- Swagger/OpenAPI
+- Docker & Docker Compose
+- pgAdmin 4
 
 ## Proje Yapısı
 
@@ -53,6 +66,9 @@ JwtBackendApi/
 │   ├── ScreenController.cs         # Ekran ve aksiyon yönetimi
 │   ├── PermissionController.cs     # İzin yönetimi ve kontrol
 │   └── MenuController.cs           # Menü yönetimi
+├── Data/
+│   ├── ApplicationDbContext.cs     # Entity Framework DbContext
+│   └── DbInitializer.cs            # Database seed data
 ├── Models/
 │   ├── User.cs                     # Kullanıcı modeli
 │   ├── UserGroup.cs                # Kullanıcı grubu modeli
@@ -83,7 +99,15 @@ JwtBackendApi/
 │   ├── IMenuService.cs             # Menu servis interface
 │   └── MenuService.cs              # Menu servisi
 ├── Program.cs                      # Uygulama başlangıç noktası
-└── appsettings.json               # Konfigürasyon dosyası
+├── appsettings.json               # Konfigürasyon dosyası
+└── appsettings.Development.json   # Development konfigürasyonu
+
+database/
+├── init.sql                        # PostgreSQL initialization script
+└── install-packages.sh             # NuGet packages install script
+
+docker-compose.yml                  # Docker Compose configuration
+DATABASE_SETUP.md                   # Database setup documentation
 ```
 
 ## Veri Modeli
@@ -113,23 +137,123 @@ Screen (1) ──< (N) ScreenAction (1)            ScreenPermission
 
 ## Kurulum
 
-1. .NET 8.0 SDK'nın yüklü olduğundan emin olun:
+### Ön Gereksinimler
+
+- .NET 8.0 SDK
+- Docker & Docker Compose (önerilen)
+- PostgreSQL 16+ (manuel kurulum için)
+
+### Hızlı Başlangıç (Docker ile)
+
+1. Projeyi klonlayın
 ```bash
-dotnet --version
+git clone <repository-url>
+cd claudeCodeTest
 ```
 
-2. Bağımlılıkları yükleyin:
+2. PostgreSQL ve pgAdmin'i başlatın
+```bash
+docker-compose up -d
+```
+
+3. NuGet paketlerini restore edin
 ```bash
 cd JwtBackendApi
 dotnet restore
 ```
 
-3. Uygulamayı çalıştırın:
+4. Uygulamayı çalıştırın
 ```bash
 dotnet run
 ```
 
 Uygulama varsayılan olarak `https://localhost:7xxx` ve `http://localhost:5xxx` adreslerinde çalışacaktır.
+
+### Manuel Kurulum
+
+1. .NET 8.0 SDK'nın yüklü olduğundan emin olun
+```bash
+dotnet --version
+```
+
+2. PostgreSQL kurun ve başlatın
+```bash
+# Ubuntu/Debian
+sudo apt install postgresql postgresql-contrib
+
+# macOS
+brew install postgresql@16
+
+# Windows
+# https://www.postgresql.org/download/windows/
+```
+
+3. Database oluşturun
+```bash
+sudo -u postgres psql
+CREATE DATABASE jwtbackendapi;
+\q
+```
+
+4. SQL scriptini çalıştırın
+```bash
+psql -U postgres -d jwtbackendapi -f database/init.sql
+```
+
+5. Connection string'i güncelleyin
+```json
+// appsettings.json
+{
+  "ConnectionStrings": {
+    "DefaultConnection": "Host=localhost;Port=5432;Database=jwtbackendapi;Username=postgres;Password=YourPassword"
+  }
+}
+```
+
+6. Uygulamayı çalıştırın
+```bash
+cd JwtBackendApi
+dotnet restore
+dotnet run
+```
+
+### Entity Framework Migrations (Alternatif)
+
+SQL script yerine Entity Framework migrations kullanabilirsiniz:
+
+```bash
+cd JwtBackendApi
+
+# Migration oluştur
+dotnet ef migrations add InitialCreate
+
+# Veritabanını güncelle
+dotnet ef database update
+```
+
+**Not:** Uygulama ilk çalıştırıldığında `DbInitializer` otomatik olarak seed data ekler.
+
+### Docker Servisleri
+
+**PostgreSQL:**
+- Host: `localhost`
+- Port: `5432`
+- Database: `jwtbackendapi`
+- Username: `postgres`
+- Password: `postgres`
+
+**pgAdmin (Web UI):**
+- URL: `http://localhost:5050`
+- Email: `admin@example.com`
+- Password: `admin`
+
+### Varsayılan Admin Kullanıcısı
+
+Sistem otomatik olarak bir admin kullanıcısı oluşturur:
+- Username: `admin`
+- Password: `Admin123!`
+
+Bu kullanıcıyı ilk giriş için kullanabilirsiniz.
 
 ## API Endpoints
 
